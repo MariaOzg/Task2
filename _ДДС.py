@@ -10,9 +10,9 @@ import streamlit_authenticator as stauth
 # ==========================================
 COL_DATE = "Дата"
 COL_PROJECT = "Название проекта"
-COL_ARTICLE = "Статья"            
-COL_SUM = "Сумма, в дол"          
-SHEET_NAME = "ДДС"              
+COL_ARTICLE = "Статья"
+COL_SUM = "Сумма, в дол"
+SHEET_NAME = "ДДС"
 # ==========================================
 
 st.set_page_config(page_title="ДДС Аналитика", layout="wide")
@@ -23,22 +23,31 @@ def load_data():
     # 👇 Вставьте вашу ссылку
     sheet_url = "https://docs.google.com/spreadsheets/d/1lXHUU5r8aq-S0c3fH0rY4Sh9lmiM9YT7ARp4lwEvgvA/edit?gid=0#gid=0" 
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-   # БЕРЕМ КЛЮЧИ ИЗ СЕЙФА:
-    creds_dict = st.secrets["gcp_service_account"]
-    creds_dict = dict(st.secrets["gcp_service_account"])  # Превращаем в обычный словарь
-# Чиним проблему с переносами строк в ключе, если она есть
-    creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
+    
+    # БЕРЕМ КЛЮЧИ ИЗ СЕЙФА:
+    # Превращаем в обычный словарь
+    creds_dict = dict(st.secrets["gcp_service_account"])  
+    
+    # Чиним проблему с переносами строк в ключе, если она есть
+    if "private_key" in creds_dict:
+        creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
 
+    # Создаем объект авторизации
     creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+    
+    # ЭТОЙ СТРОКИ НЕ ХВАТАЛО: Авторизуемся в gspread
+    client = gspread.authorize(creds)
     
     try:
         sheet = client.open_by_url(sheet_url).worksheet(SHEET_NAME)
     except Exception as e:
-        st.error(f"⚠️ Ошибка доступа: {e}")
+        st.error(f"❌ Не найдена вкладка '{SHEET_NAME}'. Ошибка: {e}")
         st.stop()
         
     all_values = sheet.get_all_values()
-    if len(all_values) < 2: return pd.DataFrame()
+    if len(all_values) < 2: 
+        return pd.DataFrame()
+    
     headers = all_values[0]
     data = all_values[1:]
     return pd.DataFrame(data, columns=headers)
@@ -68,16 +77,16 @@ def main():
     # 🔐 БЛОК БЕЗОПАСНОСТИ
     # ==========================================
     
-    # Ваши хеши (вставьте их сюда из keygen.py)
+    # Ваши хеши
     credentials = {
         'usernames': {
             'Rustam': {
                 'name': 'Рустам Директор',
-                'password': '$2b$12$HbEJYkUDi9o/4XQSw.0ofu1FOApW3rHV81In.fCDU.1EjA3fMfewC' # Вставьте хеш сюда
+                'password': '$2b$12$HbEJYkUDi9o/4XQSw.0ofu1FOApW3rHV81In.fCDU.1EjA3fMfewC'
             },
             'Vlad': {
                 'name': 'Влад Директор',
-                'password': '$2b$12$nHELiIrxeHYaWKJ5L.ckxu/AXAkEv1cqozt7RlSf2gqEXDEiayIc.' # Вставьте хеш сюда
+                'password': '$2b$12$nHELiIrxeHYaWKJ5L.ckxu/AXAkEv1cqozt7RlSf2gqEXDEiayIc.'
             },
             'Elena': {
                 'name': 'Елена Бухгалтер',
@@ -102,18 +111,20 @@ def main():
         cookie_expiry_days=30
     )
 
-    # ----------------------------------------------------
-    # 👇 ИСПРАВЛЕННАЯ ЧАСТЬ (ДЛЯ НОВОЙ БИБЛИОТЕКИ) 👇
-    # ----------------------------------------------------
-    
-    # Просто рисуем окно входа (оно само обновит session_state)
-    authenticator.login()
+    # Вход
+    # Обратите внимание: в новых версиях stauth аргументы login() могут отличаться,
+    # но оставляем как у вас, чтобы не ломать логику библиотеки, если она старая.
+    try:
+        authenticator.login()
+    except Exception as e:
+        # Fallback для старых версий, если вызов без аргументов не сработает
+        authenticator.login('Login', 'main')
 
     # Проверяем статус через session_state
-    if st.session_state["authentication_status"] is False:
+    if st.session_state.get("authentication_status") is False:
         st.error("Неверный логин или пароль")
         return 
-    elif st.session_state["authentication_status"] is None:
+    elif st.session_state.get("authentication_status") is None:
         st.warning("Пожалуйста, войдите в систему")
         return 
     
@@ -123,7 +134,7 @@ def main():
     authenticator.logout("Выйти", "sidebar")
     
     # Приветствие
-    user_name = st.session_state["name"]
+    user_name = st.session_state.get("name", "Пользователь")
     st.sidebar.write(f"Вы вошли как: **{user_name}**")
     st.sidebar.divider()
 
@@ -165,9 +176,13 @@ def main():
     c1, c2 = st.columns([2, 1])
     with c1:
         st.subheader("Динамика")
-        df_chart = df_filtered.groupby(["Month_Year", COL_ARTICLE])["Clean_Money"].sum().reset_index()
-        fig = px.bar(df_chart, x="Month_Year", y="Clean_Money", color=COL_ARTICLE)
-        st.plotly_chart(fig, use_container_width=True)
+        # Группировка
+        if "Month_Year" in df_filtered.columns:
+            df_chart = df_filtered.groupby(["Month_Year", COL_ARTICLE])["Clean_Money"].sum().reset_index()
+            fig = px.bar(df_chart, x="Month_Year", y="Clean_Money", color=COL_ARTICLE)
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.warning("Нет данных с датами для построения графика")
 
     with c2:
         st.subheader("Структура")
@@ -176,11 +191,9 @@ def main():
         st.plotly_chart(fig_pie, use_container_width=True)
 
     st.subheader("Сводная")
-    pivot = df_filtered.pivot_table(index=COL_ARTICLE, columns="Month_Year", values="Clean_Money", aggfunc="sum", fill_value=0)
-    st.dataframe(pivot.style.format("{:,.0f}"))
+    if "Month_Year" in df_filtered.columns:
+        pivot = df_filtered.pivot_table(index=COL_ARTICLE, columns="Month_Year", values="Clean_Money", aggfunc="sum", fill_value=0)
+        st.dataframe(pivot.style.format("{:,.0f}"))
 
 if __name__ == "__main__":
     main()
-
-
-
