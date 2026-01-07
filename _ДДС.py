@@ -31,7 +31,7 @@ def load_data():
     try:
         sheet = client.open_by_url(sheet_url).worksheet(SHEET_NAME)
     except Exception as e:
-        st.error(f"❌ Не найдена вкладка '{SHEET_NAME}'.")
+        st.error(f"⚠️ Ошибка доступа: {e}")
         st.stop()
         
     all_values = sheet.get_all_values()
@@ -178,3 +178,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
