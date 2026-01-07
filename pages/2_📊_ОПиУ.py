@@ -28,9 +28,31 @@ def load_pnl_data():
     # 👇 Вставьте вашу ссылку
     sheet_url = "https://docs.google.com/spreadsheets/d/1lXHUU5r8aq-S0c3fH0rY4Sh9lmiM9YT7ARp4lwEvgvA/edit?gid=690406538#gid=690406538" 
     
+    # --- Вставляем внутрь функции ---
+
+    # 1. Обязательно определяем scope (иначе будет ошибка NameError)
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+
+    # 2. БЕРЕМ КЛЮЧИ ИЗ СЕЙФА
+    creds_dict = dict(st.secrets["gcp_service_account"])
+
+    # 3. Принудительно указываем тип (лечит ошибку "Unexpected credentials type")
+    creds_dict["type"] = "service_account"
+
+    # 4. Чиним переносы строк в ключе (лечит "Invalid JWT Signature")
+    if "private_key" in creds_dict:
+        creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
+
+    # 5. Создаем объект авторизации
     creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
     client = gspread.authorize(creds)
+# 2. Чиним переносы строк в ключе
+if "private_key" in creds_dict:
+    creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
+
+# Создаем объект авторизации
+creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+client = gspread.authorize(creds)
         
     try:
         sheet = client.open_by_url(sheet_url).worksheet(SHEET_NAME)
