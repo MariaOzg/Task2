@@ -25,8 +25,11 @@ def load_data():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
    # БЕРЕМ КЛЮЧИ ИЗ СЕЙФА:
     creds_dict = st.secrets["gcp_service_account"]
-    creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
-    client = gspread.authorize(creds)
+    creds_dict = dict(st.secrets["gcp_service_account"])  # Превращаем в обычный словарь
+# Чиним проблему с переносами строк в ключе, если она есть
+creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
+
+creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
     
     try:
         sheet = client.open_by_url(sheet_url).worksheet(SHEET_NAME)
@@ -178,4 +181,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
