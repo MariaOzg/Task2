@@ -25,24 +25,29 @@ st.set_page_config(page_title="Дебиторская задолженность
 # --- ФУНКЦИЯ ЗАГРУЗКИ (Такая же, как в app.py) ---
 @st.cache_data(ttl=600)
 def load_data():
-    # 👇 Вставьте ту же ссылку, что и в app.py
-    sheet_url = "https://docs.google.com/spreadsheets/d/1lXHUU5r8aq-S0c3fH0rY4Sh9lmiM9YT7ARp4lwEvgvA/edit?gid=2147255322#gid=2147255322" 
+    # 1. Ссылка на таблицу
+    sheet_url = "https://docs.google.com/spreadsheets/d/1lXHUU5r8aq-S0c3fH0rY4Sh9lmiM9YT7ARp4lwEvgvA/edit#gid=2147255322"
     
+    # 2. Настройки доступа
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-    # Файл credentials.json должен лежать в главной папке (рядом с app.py)
-    creds = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
+
+    # 3. Ключи из сейфа Streamlit
+    creds_dict = st.secrets["gcp_service_account"]
+    creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
     client = gspread.authorize(creds)
-    
-    try:
-        sheet = client.open_by_url(sheet_url).worksheet(SHEET_NAME)
-    except Exception as e:
-        st.error(f"❌ Не найдена вкладка '{SHEET_NAME}'. Создайте её в таблице!")
-        st.stop()
-        
+
+    # 4. Получение данных
+    sheet = client.open_by_url(sheet_url).sheet1
     all_values = sheet.get_all_values()
-    if len(all_values) < 2: return pd.DataFrame()
+
+    # 5. Проверка: если таблица пустая
+    if len(all_values) < 2:
+        return pd.DataFrame()
+
+    # 6. Сборка таблицы
     headers = all_values[0]
     data = all_values[1:]
+    
     return pd.DataFrame(data, columns=headers)
 
 # --- ОЧИСТКА ---
