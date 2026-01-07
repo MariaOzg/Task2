@@ -18,6 +18,7 @@ SHEET_NAME = "ДДС"
 st.set_page_config(page_title="ДДС Аналитика", layout="wide")
 
 # --- 1. ФУНКЦИЯ ЗАГРУЗКИ ---
+# --- 1. ФУНКЦИЯ ЗАГРУЗКИ ---
 @st.cache_data(ttl=600) 
 def load_data():
     # 👇 Вставьте вашу ссылку
@@ -25,17 +26,24 @@ def load_data():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
     
     # БЕРЕМ КЛЮЧИ ИЗ СЕЙФА:
-    # Превращаем в обычный словарь
-    creds_dict = dict(st.secrets["gcp_service_account"])  
+    try:
+        creds_dict = dict(st.secrets["gcp_service_account"])
+    except KeyError:
+        st.error("❌ Ошибка: В secrets.toml не найден раздел [gcp_service_account]")
+        st.stop()
     
-    # Чиним проблему с переносами строк в ключе, если она есть
+    # 👇 ИСПРАВЛЕНИЕ ВАШЕЙ ОШИБКИ ЗДЕСЬ
+    # Добавляем тип аккаунта вручную, если он потерялся в файле
+    creds_dict["type"] = "service_account"
+
+    # Чиним переносы строк
     if "private_key" in creds_dict:
         creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
 
     # Создаем объект авторизации
     creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
     
-    # ЭТОЙ СТРОКИ НЕ ХВАТАЛО: Авторизуемся в gspread
+    # Авторизуемся в gspread
     client = gspread.authorize(creds)
     
     try:
